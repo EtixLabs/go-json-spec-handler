@@ -49,7 +49,7 @@ func ParseObject(r *http.Request) (*Object, *Error) {
 	}
 
 	if !document.HasData() {
-		return nil, nil
+		return nil, TopLevelError("data")
 	}
 
 	object := document.First()
