@@ -111,7 +111,7 @@ func (e *Error) Error() string {
 }
 
 /*
-Validate ensures that the an error meets all JSON API criteria.
+Validate ensures that the error meets all JSON API criteria.
 */
 func (e *Error) Validate(r *http.Request, response bool) *Error {
 
