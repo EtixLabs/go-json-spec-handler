@@ -149,6 +149,33 @@ func ISE(internalMessage string) *Error {
 	}
 }
 
+// BadRequestError is a convenience function to return a 400 Bad Request response.
+func BadRequestError(msg string, detail string) *Error {
+	return &Error{
+		Title:  msg,
+		Detail: detail,
+		Status: http.StatusBadRequest,
+	}
+}
+
+// TopLevelError is used whenever the client sends a JSON payload with a missing top-level field.
+func TopLevelError(field string) *Error {
+	err := &Error{
+		Detail: fmt.Sprintf("Missing `%s` at document's top level", strings.ToLower(field)),
+		Status: 422,
+	}
+
+	// NOTE: Here we should point to the top-level of the document (""),
+	// but as it is also the empty string value it would be ignored by marshalling.
+	// Instead we point to “/” even if it is an appropriate reference to
+	// the string `"some value"` in the request document `{"": "some value"}`.
+	// The detail message however eliminates the misunderstanding by specifying
+	// the name of the missing field.
+	err.Source.Pointer = "/"
+
+	return err
+}
+
 /*
 InputError creates a properly formatted HTTP Status 422 error with an appropriate
 user safe message. The parameter "attribute" will format err.Source.Pointer to be
@@ -190,6 +217,14 @@ func SpecificationError(detail string) *Error {
 		Title:  "JSON API Specification Error",
 		Detail: detail,
 		Status: http.StatusNotAcceptable,
+	}
+}
+
+// ForbiddenError is used whenever an attempt to do a forbidden operation is made.
+func ForbiddenError(msg string) *Error {
+	return &Error{
+		Title:  msg,
+		Status: http.StatusForbidden,
 	}
 }
 
