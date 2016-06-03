@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/derekdowling/go-json-spec-handler",
+	"ImportPath": "github.com/EtixLabs/go-json-spec-handler",
 	"GoVersion": "go1.5",
 	"Packages": [
 		"./..."
