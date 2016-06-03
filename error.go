@@ -11,7 +11,7 @@ DefaultError can be customized in order to provide a more customized error
 Detail message when an Internal Server Error occurs. Optionally, you can modify
 a returned jsh.Error before sending it as a response as well.
 */
-var DefaultErrorDetail = "Request failed, something went wrong."
+var DefaultErrorDetail = "Request failed, something went wrong"
 
 // DefaultTitle can be customized to provide a more customized ISE Title
 var DefaultErrorTitle = "Internal Server Error"
@@ -101,11 +101,11 @@ to the end user, use err.SafeError() instead.
 func (e *Error) Error() string {
 	msg := fmt.Sprintf("%d: %s - %s", e.Status, e.Title, e.Detail)
 	if e.Source.Pointer != "" {
-		msg += fmt.Sprintf("(Source.Pointer: %s)", e.Source.Pointer)
+		msg += fmt.Sprintf(" (Source.Pointer: %s)", e.Source.Pointer)
 	}
 
 	if e.ISE != "" {
-		msg += fmt.Sprintf("\nInternal Error: %s", e.ISE)
+		msg += fmt.Sprintf(": %s", e.ISE)
 	}
 
 	return msg
