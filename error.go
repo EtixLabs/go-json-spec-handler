@@ -69,6 +69,12 @@ func (e ErrorList) StatusCode() int {
 	return e[0].Status
 }
 
+// ErrorSource represents the source of a JSONAPI error, either by a pointer or a query parameter name.
+type ErrorSource struct {
+	Pointer   string `json:"pointer,omitempty"`
+	Parameter string `json:"parameter,omitempty"`
+}
+
 /*
 Error consists of a number of contextual attributes to make conveying
 certain error type simpler as per the JSON API specification:
@@ -83,14 +89,11 @@ http://jsonapi.org/format/#error-objects
 	jsh.Send(w, r, error)
 */
 type Error struct {
-	Status int    `json:"status,string"`
-	Title  string `json:"title,omitempty"`
-	Detail string `json:"detail,omitempty"`
-	Source struct {
-		Pointer   string `json:"pointer,omitempty"`
-		Parameter string `json:"parameter,omitempty"`
-	} `json:"source,omitempty"`
-	ISE string `json:"-"`
+	Status int          `json:"status,string"`
+	Title  string       `json:"title,omitempty"`
+	Detail string       `json:"detail,omitempty"`
+	Source *ErrorSource `json:"source,omitempty"`
+	ISE    string       `json:"-"`
 }
 
 /*
@@ -100,7 +103,7 @@ to the end user, use err.SafeError() instead.
 */
 func (e *Error) Error() string {
 	msg := fmt.Sprintf("%d: %s - %s", e.Status, e.Title, e.Detail)
-	if e.Source.Pointer != "" {
+	if e.Source != nil && e.Source.Pointer != "" {
 		msg += fmt.Sprintf("(Source.Pointer: %s)", e.Source.Pointer)
 	}
 
@@ -121,7 +124,7 @@ func (e *Error) Validate(r *http.Request, response bool) *Error {
 		return ISE(fmt.Sprintf("No HTTP Status set for error %+v\n", e))
 	case e.Status < 400 || e.Status > 600:
 		return ISE(fmt.Sprintf("HTTP Status out of valid range for error %+v\n", e))
-	case e.Status == 422 && e.Source.Pointer == "":
+	case e.Status == 422 && (e.Source == nil || e.Source.Pointer == ""):
 		return ISE(fmt.Sprintf("Source Pointer must be set for 422 Status error"))
 	}
 
@@ -160,19 +163,17 @@ func BadRequestError(msg string, detail string) *Error {
 
 // TopLevelError is used whenever the client sends a JSON payload with a missing top-level field.
 func TopLevelError(field string) *Error {
-	err := &Error{
-		Detail: fmt.Sprintf("Missing `%s` at document's top level", strings.ToLower(field)),
-		Status: 422,
-	}
-
 	// NOTE: Here we should point to the top-level of the document (""),
 	// but as it is also the empty string value it would be ignored by marshalling.
 	// Instead we point to “/” even if it is an appropriate reference to
 	// the string `"some value"` in the request document `{"": "some value"}`.
 	// The detail message however eliminates the misunderstanding by specifying
 	// the name of the missing field.
-	err.Source.Pointer = "/"
-
+	err := &Error{
+		Detail: fmt.Sprintf("Missing `%s` at document's top level", strings.ToLower(field)),
+		Status: 422,
+		Source: &ErrorSource{Pointer: "/"},
+	}
 	return err
 }
 
@@ -182,16 +183,14 @@ user safe message. The parameter "attribute" will format err.Source.Pointer to b
 "/data/attributes/<attribute>".
 */
 func InputError(msg string, attribute string) *Error {
-	err := &Error{
+	return &Error{
 		Title:  "Invalid Attribute",
 		Detail: msg,
 		Status: 422,
+		Source: &ErrorSource{
+			Pointer: fmt.Sprintf("/data/attributes/%s", strings.ToLower(attribute)),
+		},
 	}
-
-	// Assign this after the fact, easier to do
-	err.Source.Pointer = fmt.Sprintf("/data/attributes/%s", strings.ToLower(attribute))
-
-	return err
 }
 
 /*
@@ -199,16 +198,14 @@ ParameterError creates a properly formatted HTTP Status 400 error with an approp
 user safe message. The err.Source.Parameter field will be set to the parameter "param".
 */
 func ParameterError(msg string, param string) *Error {
-	err := &Error{
+	return &Error{
 		Title:  "Invalid Query Parameter",
 		Detail: msg,
 		Status: http.StatusBadRequest,
+		Source: &ErrorSource{
+			Parameter: strings.ToLower(param),
+		},
 	}
-
-	// Assign this after the fact, easier to do
-	err.Source.Parameter = strings.ToLower(param)
-
-	return err
 }
 
 // SpecificationError is used whenever the Client violates the JSON API Spec

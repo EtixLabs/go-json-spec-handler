@@ -75,6 +75,7 @@ func TestObject(t *testing.T) {
 
 					err := testObject.Unmarshal("testObject", &testValidation)
 					So(err, ShouldNotBeNil)
+					So(err[0].Source, ShouldNotBeNil)
 					So(err[0].Source.Pointer, ShouldEqual, "/data/attributes/foo")
 				})
 
@@ -94,7 +95,9 @@ func TestObject(t *testing.T) {
 					err := testManyObject.Unmarshal("testObject", &testManyValidations)
 					So(err, ShouldNotBeNil)
 
+					So(err[0].Source, ShouldNotBeNil)
 					So(err[0].Source.Pointer, ShouldEqual, "/data/attributes/foo")
+					So(err[1].Source, ShouldNotBeNil)
 					So(err[1].Source.Pointer, ShouldEqual, "/data/attributes/baz")
 				})
 			})

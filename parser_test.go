@@ -67,6 +67,7 @@ func TestParsing(t *testing.T) {
 				_, err := ParseObject(req)
 				So(err, ShouldNotBeNil)
 				So(err.Status, ShouldEqual, 422)
+				So(err.Source, ShouldNotBeNil)
 				So(err.Source.Pointer, ShouldEqual, "/data/attributes/type")
 			})
 
@@ -124,6 +125,7 @@ func TestParsing(t *testing.T) {
 				_, err := ParseList(req)
 				So(err, ShouldNotBeNil)
 				So(err.Status, ShouldEqual, 422)
+				So(err.Source, ShouldNotBeNil)
 				So(err.Source.Pointer, ShouldEqual, "/data/attributes/id")
 			})
 		})
