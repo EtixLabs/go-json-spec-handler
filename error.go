@@ -88,6 +88,7 @@ type Error struct {
 	Detail string `json:"detail,omitempty"`
 	Source struct {
 		Pointer   string `json:"pointer,omitempty"`
+		Parameter string `json:"parameter,omitempty"`
 	} `json:"source,omitempty"`
 	ISE string `json:"-"`
 }
@@ -162,6 +163,23 @@ func InputError(msg string, attribute string) *Error {
 
 	// Assign this after the fact, easier to do
 	err.Source.Pointer = fmt.Sprintf("/data/attributes/%s", strings.ToLower(attribute))
+
+	return err
+}
+
+/*
+ParameterError creates a properly formatted HTTP Status 400 error with an appropriate
+user safe message. The err.Source.Parameter field will be set to the parameter "param".
+*/
+func ParameterError(msg string, param string) *Error {
+	err := &Error{
+		Title:  "Invalid Query Parameter",
+		Detail: msg,
+		Status: http.StatusBadRequest,
+	}
+
+	// Assign this after the fact, easier to do
+	err.Source.Parameter = strings.ToLower(param)
 
 	return err
 }
