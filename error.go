@@ -83,12 +83,12 @@ http://jsonapi.org/format/#error-objects
 	jsh.Send(w, r, error)
 */
 type Error struct {
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
 	Status int    `json:"status,string"`
+	Title  string `json:"title,omitempty"`
+	Detail string `json:"detail,omitempty"`
 	Source struct {
-		Pointer string `json:"pointer"`
-	} `json:"source"`
+		Pointer   string `json:"pointer,omitempty"`
+	} `json:"source,omitempty"`
 	ISE string `json:"-"`
 }
 
