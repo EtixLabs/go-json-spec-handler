@@ -137,11 +137,6 @@ func (p *Parser) Document(payload io.ReadCloser, mode DocumentMode) (*Document, 
 			if len(document.Data) > 1 && object.ID == "" {
 				return nil, InputError("Object without ID present in list", "id")
 			}
-
-			// If an object's attribute is empty, at least set it to valid JSON so that unmarshalling can succeed.
-			if len(object.Attributes) == 0 {
-				object.Attributes = json.RawMessage("{}")
-			}
 		}
 	}
 
