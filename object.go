@@ -67,21 +67,19 @@ specifying each struct attribute that failed. In this case, all you need to do i
 func (o *Object) Unmarshal(resourceType string, target interface{}) ErrorList {
 
 	if resourceType != o.Type {
-		return []*Error{ISE(fmt.Sprintf(
+		return []*Error{BadRequestError(fmt.Sprintf(
 			"Expected type %s, when converting actual type: %s",
 			resourceType,
 			o.Type,
-		))}
+		), "")}
 	}
 
 	jsonErr := json.Unmarshal(o.Attributes, target)
 	if jsonErr != nil {
-		return []*Error{ISE(fmt.Sprintf(
-			"For type '%s' unable to marshal: %s\nError:%s",
+		return []*Error{BadRequestError(fmt.Sprintf(
+			"For type '%s' unable to unmarshal",
 			resourceType,
-			string(o.Attributes),
-			jsonErr.Error(),
-		))}
+		), jsonErr.Error())}
 	}
 
 	return validateInput(target)
