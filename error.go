@@ -84,6 +84,7 @@ http://jsonapi.org/format/#error-objects
 */
 type Error struct {
 	Status int    `json:"status,string"`
+	Code   string `json:"code,omitempty"`
 	Title  string `json:"title,omitempty"`
 	Detail string `json:"detail,omitempty"`
 	Source struct {
