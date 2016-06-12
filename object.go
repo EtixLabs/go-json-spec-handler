@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/asaskevich/govalidator"
 )
@@ -155,6 +156,80 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 	return nil
 }
 
+/*
+ProcessCreate unmarshals the object to the given struct (see Object.Unmarshal) and uses JSH tags
+to validate that there is no missing attributes or forbidden ones.
+
+Simply define your struct with jsh tags to allow for the model to be created with the tagged attributes.
+
+	struct {
+		Username string `json:"username" jsh:"create"`
+	}
+
+You can also add a required option to ensure a specific attribute is non-zero.
+
+	struct {
+		Username string `json:"username" jsh:"create/required"`
+	}
+
+The model must be a non-nil pointer to a struct.
+If valid, the model contains the valid request attributes after the call (even on validation error)
+
+The string slice returned contains the name of the attributes that were unmarshaled to the model.
+*/
+func (o *Object) ProcessCreate(resourceType string, model interface{}) ([]string, ErrorList) {
+	return o.process(tagCreate, resourceType, model)
+}
+
+/*
+ProcessUpdate unmarshals the object to the given struct (see Object.Unmarshal) and uses JSH tags
+to validate that there is no missing attributes or forbidden ones.
+
+Simply define your struct with jsh tags to allow for the model to be created with the tagged attributes.
+
+	struct {
+		Username string `json:"username" jsh:"update"`
+	}
+
+You can also add a required option to ensure a specific attribute is non-zero.
+
+	struct {
+		Username string `json:"username" jsh:"update/required"`
+	}
+
+The model must be a non-nil pointer to a struct.
+If valid, the model contains the valid request attributes after the call (even on validation error)
+
+If dest is not nil, it must be of the same type than model and it will be updated with the valid attributes.
+Pass nil if you want to handle the update yourself.
+
+The string slice returned contains the names of the attributes that were unmarshaled to the model.
+If dest is not nil, it also represents the name of the updated attributes.
+*/
+func (o *Object) ProcessUpdate(resourceType string, model interface{}, dest interface{}) ([]string, ErrorList) {
+	// Assert model is of the same type than dest
+	drv := reflect.ValueOf(dest)
+	if drv.IsValid() && drv.Type() != reflect.TypeOf(model) {
+		return nil, ErrorList{ISE(fmt.Sprintf("The arguments to %s should be of the same type", tagUpdate))}
+	}
+	attrs, err := o.process(tagUpdate, resourceType, model)
+	if err != nil {
+		return nil, err
+	}
+	// Return if no dest is provided
+	if !drv.IsValid() {
+		return attrs, nil
+	}
+	// Update dest with decoded values
+	mrv := reflect.ValueOf(model).Elem()
+	drv = drv.Elem()
+	for _, attr := range attrs {
+		// NOTE: We can assume field names are correct
+		drv.FieldByName(attr).Set(mrv.FieldByName(attr))
+	}
+	return attrs, nil
+}
+
 // String prints a formatted string representation of the object
 func (o *Object) String() string {
 	raw, err := json.MarshalIndent(o, "", " ")
@@ -190,4 +265,27 @@ func validateInput(target interface{}) ErrorList {
 	}
 
 	return nil
+}
+
+// process validates that the object's attributes are valid for the given action.
+// It unmarshals the attributes to the model's fields that are tagged with the action.
+func (o *Object) process(action, resourceType string, model interface{}) ([]string, ErrorList) {
+	// Check argument is a non-nil pointer
+	rv := reflect.ValueOf(model)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return nil, ErrorList{ISE(fmt.Sprintf("The argument to %s must be a non-nil pointer", action))}
+	}
+	// Get pointer element
+	rv = rv.Elem()
+	// Check pointer element is a struct
+	if rv.Kind() != reflect.Struct {
+		return nil, ErrorList{ISE(fmt.Sprintf("The argument to %s must be a pointer to a struct", action))}
+	}
+	// Unmarshal to model and validates input against govalidator rules
+	err := o.Unmarshal(resourceType, model)
+	if err != nil {
+		return nil, err
+	}
+	// Look for missing and forbidden attributes for action
+	return validateStruct(rv, action)
 }
