@@ -67,11 +67,7 @@ specifying each struct attribute that failed. In this case, all you need to do i
 func (o *Object) Unmarshal(resourceType string, target interface{}) ErrorList {
 
 	if resourceType != o.Type {
-		return []*Error{BadRequestError(fmt.Sprintf(
-			"Expected type %s, when converting actual type: %s",
-			resourceType,
-			o.Type,
-		), "")}
+		return []*Error{ConflictError(o.Type, "")}
 	}
 
 	jsonErr := json.Unmarshal(o.Attributes, target)

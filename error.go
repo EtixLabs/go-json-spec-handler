@@ -237,3 +237,18 @@ func NotFound(resourceType string, id string) *Error {
 		Status: http.StatusNotFound,
 	}
 }
+
+// ConflictError returns a 409 Conflict error.
+func ConflictError(resourceType string, id string) *Error {
+	var detail string
+	if id == "" {
+		detail = fmt.Sprintf("Resource type '%s' does not match URL's", resourceType)
+	} else {
+		detail = fmt.Sprintf("ID '%s' does not match URL's", id)
+	}
+	return &Error{
+		Title:  "Resource conflict",
+		Detail: detail,
+		Status: http.StatusConflict,
+	}
+}
