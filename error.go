@@ -136,26 +136,71 @@ func (e *Error) StatusCode() int {
 	return e.Status
 }
 
-/*
-ISE is a convenience function for creating a ready-to-go Internal Service Error
-response. The message you pass in is set to the ErrorObject.ISE attribute so you
-can gracefully log ISE's internally before sending them.
-*/
-func ISE(internalMessage string) *Error {
-	return &Error{
-		Title:  DefaultErrorTitle,
-		Detail: DefaultErrorDetail,
-		Status: http.StatusInternalServerError,
-		ISE:    internalMessage,
-	}
-}
-
 // BadRequestError is a convenience function to return a 400 Bad Request response.
 func BadRequestError(msg string, detail string) *Error {
 	return &Error{
 		Title:  msg,
 		Detail: detail,
 		Status: http.StatusBadRequest,
+	}
+}
+
+/*
+ParameterError creates a properly formatted HTTP Status 400 error with an appropriate
+user safe message. The err.Source.Parameter field will be set to the parameter "param".
+*/
+func ParameterError(msg string, param string) *Error {
+	err := &Error{
+		Title:  "Invalid Query Parameter",
+		Detail: msg,
+		Status: http.StatusBadRequest,
+	}
+
+	// Assign this after the fact, easier to do
+	err.Source.Parameter = strings.ToLower(param)
+
+	return err
+}
+
+// ForbiddenError is used whenever an attempt to do a forbidden operation is made.
+func ForbiddenError(msg string) *Error {
+	return &Error{
+		Title:  msg,
+		Status: http.StatusForbidden,
+	}
+}
+
+// NotFound returns a 404 formatted error.
+func NotFound(resourceType string, id string) *Error {
+	return &Error{
+		Title:  "Not Found",
+		Detail: fmt.Sprintf("No resource of type '%s' exists for ID: %s", resourceType, id),
+		Status: http.StatusNotFound,
+	}
+}
+
+// SpecificationError returnss a 406 Not Acceptable.
+// It is used whenever the Client violates the JSON API Spec.
+func SpecificationError(detail string) *Error {
+	return &Error{
+		Title:  "JSON API Specification Error",
+		Detail: detail,
+		Status: http.StatusNotAcceptable,
+	}
+}
+
+// ConflictError returns a 409 Conflict error.
+func ConflictError(resourceType string, id string) *Error {
+	var detail string
+	if id == "" {
+		detail = fmt.Sprintf("Resource type '%s' does not match URL's", resourceType)
+	} else {
+		detail = fmt.Sprintf("ID '%s' does not match URL's", id)
+	}
+	return &Error{
+		Title:  "Resource conflict",
+		Detail: detail,
+		Status: http.StatusConflict,
 	}
 }
 
@@ -196,59 +241,15 @@ func InputError(msg string, attribute string) *Error {
 }
 
 /*
-ParameterError creates a properly formatted HTTP Status 400 error with an appropriate
-user safe message. The err.Source.Parameter field will be set to the parameter "param".
+ISE is a convenience function for creating a ready-to-go Internal Service Error
+response. The message you pass in is set to the ErrorObject.ISE attribute so you
+can gracefully log ISE's internally before sending them.
 */
-func ParameterError(msg string, param string) *Error {
-	err := &Error{
-		Title:  "Invalid Query Parameter",
-		Detail: msg,
-		Status: http.StatusBadRequest,
-	}
-
-	// Assign this after the fact, easier to do
-	err.Source.Parameter = strings.ToLower(param)
-
-	return err
-}
-
-// SpecificationError is used whenever the Client violates the JSON API Spec
-func SpecificationError(detail string) *Error {
+func ISE(internalMessage string) *Error {
 	return &Error{
-		Title:  "JSON API Specification Error",
-		Detail: detail,
-		Status: http.StatusNotAcceptable,
-	}
-}
-
-// ForbiddenError is used whenever an attempt to do a forbidden operation is made.
-func ForbiddenError(msg string) *Error {
-	return &Error{
-		Title:  msg,
-		Status: http.StatusForbidden,
-	}
-}
-
-// NotFound returns a 404 formatted error
-func NotFound(resourceType string, id string) *Error {
-	return &Error{
-		Title:  "Not Found",
-		Detail: fmt.Sprintf("No resource of type '%s' exists for ID: %s", resourceType, id),
-		Status: http.StatusNotFound,
-	}
-}
-
-// ConflictError returns a 409 Conflict error.
-func ConflictError(resourceType string, id string) *Error {
-	var detail string
-	if id == "" {
-		detail = fmt.Sprintf("Resource type '%s' does not match URL's", resourceType)
-	} else {
-		detail = fmt.Sprintf("ID '%s' does not match URL's", id)
-	}
-	return &Error{
-		Title:  "Resource conflict",
-		Detail: detail,
-		Status: http.StatusConflict,
+		Title:  DefaultErrorTitle,
+		Detail: DefaultErrorDetail,
+		Status: http.StatusInternalServerError,
+		ISE:    internalMessage,
 	}
 }
