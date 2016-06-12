@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/EtixLabs/go-json-spec-handler"
-	"github.com/derekdowling/jsh-api"
+	"github.com/EtixLabs/jsh-api"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
