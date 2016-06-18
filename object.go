@@ -141,6 +141,8 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 
 		o.Status = http.StatusOK
 		break
+	case "HEAD":
+		fallthrough
 	case "GET":
 		o.Status = http.StatusOK
 		break
