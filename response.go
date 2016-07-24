@@ -23,20 +23,25 @@ type Sendable interface {
 // error it encountered to help with debugging in the event of an Internal Server
 // Error.
 func Send(w http.ResponseWriter, r *http.Request, payload Sendable) *Error {
+	// Validate payload
+	var doc *Document
 	validationErr := payload.Validate(r, true)
+	if validationErr == nil {
+		// Build and validate document
+		doc = Build(payload)
+		validationErr = doc.Validate(r, true)
+	}
 	if validationErr != nil {
-
-		// If we ever hit this, something seriously wrong has happened
-		err := validationErr.Validate(r, true)
-		if err != nil {
+		// Make the validation error the new response
+		doc = Build(validationErr)
+		if err := doc.Validate(r, true); err != nil {
+			// If we ever hit this, something seriously wrong has happened
 			http.Error(w, DefaultErrorTitle, http.StatusInternalServerError)
 			return err
 		}
-
-		payload = validationErr
 	}
 
-	err := sendDocument(w, Build(payload))
+	err := sendDocument(w, doc)
 	if err != nil {
 		return err
 	}
