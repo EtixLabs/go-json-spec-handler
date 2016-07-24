@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -28,6 +29,25 @@ func TestList(t *testing.T) {
 			So(err, ShouldBeNil)
 		})
 
+		Convey("->Sort(List)", func() {
+			firstObject := &Object{
+				ID:         "ID1",
+				Type:       testObject.Type,
+				Attributes: testObject.Attributes,
+			}
+			thirdObject := &Object{
+				ID:         "ID456",
+				Type:       testObject.Type,
+				Attributes: testObject.Attributes,
+			}
+
+			testList = append(testList, thirdObject)
+			testList = append(testList, firstObject)
+			sort.Sort(testList)
+			So(testList[0].ID, ShouldEqual, firstObject.ID)
+			So(testList[1].ID, ShouldEqual, testObject.ID)
+			So(testList[2].ID, ShouldEqual, thirdObject.ID)
+		})
 
 		Convey("->Send(List)", func() {
 
