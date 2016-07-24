@@ -60,10 +60,8 @@ func ParseObject(r *http.Request) (*Object, *Error) {
 	return object, nil
 }
 
-/*
-ParseList validates the HTTP request and returns a resulting list of objects
-parsed from the request Body. Use just like ParseObject.
-*/
+// ParseList validates the HTTP request and returns a list of resource objects
+// parsed from the request Body. Use just like ParseObject.
 func ParseList(r *http.Request) (List, *Error) {
 	document, err := ParseDoc(r, ListMode)
 	if err != nil {
@@ -71,6 +69,43 @@ func ParseList(r *http.Request) (List, *Error) {
 	}
 
 	return document.Data, nil
+}
+
+// ParseRelationship validates the HTTP request and returns a relationship object.
+// Use just like ParseObject.
+func ParseRelationship(r *http.Request) (*IDObject, *Error) {
+	document, err := ParseDoc(r, ObjectMode)
+	if err != nil {
+		return nil, err
+	}
+	// Return nil if the document has no data (delete to-one relationship)
+	if !document.HasData() {
+		return nil, nil
+	}
+
+	object := document.First()
+	if object.ID == "" {
+		return nil, InputError("Missing mandatory object attribute", "id")
+	}
+	return NewIDObject(object.Type, object.ID), nil
+}
+
+/*
+ParseRelationshipList validates the HTTP request and returns a list of relationship objects
+parsed from the request Body. Use just like ParseList.
+*/
+func ParseRelationshipList(r *http.Request) (IDList, *Error) {
+	document, err := ParseDoc(r, ListMode)
+	if err != nil {
+		return nil, err
+	}
+
+	var list IDList
+	for _, object := range document.Data {
+		list = append(list, NewIDObject(object.Type, object.ID))
+	}
+
+	return list, nil
 }
 
 /*

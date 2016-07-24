@@ -79,34 +79,38 @@ func Build(payload Sendable) *Document {
 	document := New()
 	document.validated = true
 
-	object, isObject := payload.(*Object)
-	if isObject {
-		document.Data = List{object}
-		document.Status = object.Status
+	switch p := payload.(type) {
+	case *Document:
+		document = p
+	case *Object:
+		document.Data = List{p}
+		document.Status = p.Status
 		document.Mode = ObjectMode
-	}
-
-	list, isList := payload.(List)
-	if isList {
-		document.Data = list
+	case List:
+		document.Data = p
 		document.Status = http.StatusOK
 		document.Mode = ListMode
-	}
-
-	err, isError := payload.(*Error)
-	if isError {
-		document.Errors = ErrorList{err}
-		document.Status = err.Status
+	case *IDObject:
+		if p == nil {
+			document.Data = nil
+		} else {
+			document.Data = List{p.ToObject()}
+		}
+		document.Status = http.StatusOK
+		document.Mode = ObjectMode
+	case IDList:
+		document.Data = p.ToList()
+		document.Status = http.StatusOK
+		document.Mode = ListMode
+	case *Error:
+		document.Errors = ErrorList{p}
+		document.Status = p.Status
+		document.Mode = ErrorMode
+	case ErrorList:
+		document.Errors = p
+		document.Status = p[0].Status
 		document.Mode = ErrorMode
 	}
-
-	errorList, isErrorList := payload.(ErrorList)
-	if isErrorList {
-		document.Errors = errorList
-		document.Status = errorList[0].Status
-		document.Mode = ErrorMode
-	}
-
 	return document
 }
 

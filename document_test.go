@@ -110,6 +110,38 @@ func TestDocument(t *testing.T) {
 				So(doc.Mode, ShouldEqual, ListMode)
 			})
 
+			Convey("should accept an ID object", func() {
+				testIDObject := NewIDObject(testObject.Type, testObject.ID)
+				doc := Build(testIDObject)
+
+				So(doc.Data, ShouldNotBeEmpty)
+				So(doc.Data[0].Type, ShouldEqual, testIDObject.Type)
+				So(doc.Data[0].ID, ShouldEqual, testIDObject.ID)
+				So(doc.Status, ShouldEqual, http.StatusOK)
+				So(doc.Mode, ShouldEqual, ObjectMode)
+			})
+
+			Convey("should accept a null ID object", func() {
+				var testIDObject *IDObject
+				doc := Build(testIDObject)
+
+				So(doc.Data, ShouldEqual, nil)
+				So(doc.Status, ShouldEqual, http.StatusOK)
+				So(doc.Mode, ShouldEqual, ObjectMode)
+			})
+
+			Convey("should accept an ID list", func() {
+				testIDObject := NewIDObject(testObject.Type, testObject.ID)
+				list := IDList{testIDObject}
+				doc := Build(list)
+
+				So(doc.Data, ShouldNotBeEmpty)
+				So(doc.Data[0].Type, ShouldEqual, testIDObject.Type)
+				So(doc.Data[0].ID, ShouldEqual, testIDObject.ID)
+				So(doc.Status, ShouldEqual, http.StatusOK)
+				So(doc.Mode, ShouldEqual, ListMode)
+			})
+
 			Convey("should accept an error", func() {
 				err := &Error{Status: http.StatusInternalServerError}
 				doc := Build(err)
