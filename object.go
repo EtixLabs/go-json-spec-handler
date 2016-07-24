@@ -120,11 +120,11 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 
 	switch r.Method {
 	case "POST":
-		acceptable := map[int]bool{201: true, 202: true, 204: true}
+		acceptable := map[int]bool{200: true, 201: true, 202: true, 204: true}
 
 		if o.Status != 0 {
 			if _, validCode := acceptable[o.Status]; !validCode {
-				return SpecificationError("POST Status must be one of 201, 202, or 204.")
+				return SpecificationError("POST Status must be one of 200, 201, 202, or 204.")
 			}
 			break
 		}
@@ -145,6 +145,7 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 		fallthrough
 	case "GET":
 		o.Status = http.StatusOK
+	case "DELETE":
 	// If we hit this it means someone is attempting to use an unsupported HTTP
 	// method. Return a 406 error instead
 	default:
