@@ -132,6 +132,7 @@ func ParseResponse(response *http.Response, mode jsh.DocumentMode) (*jsh.Documen
 	skipCodes := []int{
 		http.StatusNoContent,
 		http.StatusNotFound,
+		http.StatusMethodNotAllowed,
 	}
 
 	for _, code := range skipCodes {
