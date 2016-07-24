@@ -173,15 +173,13 @@ func (d *Document) Validate(r *http.Request, isResponse bool) *Error {
 	return nil
 }
 
-// AddObject adds another object to the JSON Document after validating it.
+// AddObject adds another object to the JSON Document.
 func (d *Document) AddObject(object *Object) *Error {
-
 	if d.Mode == ErrorMode {
-		return ISE("Cannot add data to a document already possessing errors")
+		return ISE("Invalid attempt to add data to an error document")
 	}
-
 	if d.Mode == ObjectMode && len(d.Data) == 1 {
-		return ISE("Single 'data' object response is expected, you are attempting to add more than one element to be returned")
+		return ISE("Invalid attempt to add multiple objects to a single object document")
 	}
 
 	// if not yet set, add the associated HTTP status with the object
@@ -190,48 +188,31 @@ func (d *Document) AddObject(object *Object) *Error {
 	}
 
 	// finally, actually add the object to data List
-	if d.Data == nil {
-		d.Data = List{object}
-	} else {
-		d.Data = append(d.Data, object)
-	}
-
+	d.Data = append(d.Data, object)
 	return nil
 }
 
-/*
-AddError adds an error to the Document. It will also set the document Mode to
-"ErrorMode" if not done so already.
-*/
+// AddError adds an error to the Document. It will also set the document Mode to
+// "ErrorMode" if not done so already.
 func (d *Document) AddError(newErr *Error) *Error {
-
 	if d.HasData() {
-		return ISE("Attempting to set an error, when the document has prepared response data")
+		return ISE("Invalid attempt to add an error to a document containing data")
 	}
 
 	if newErr.Status == 0 {
 		return ISE("No HTTP Status code provided for error, cannot add to document")
 	}
-
 	if d.Status == 0 {
 		d.Status = newErr.Status
 	}
 
-	if d.Errors == nil {
-		d.Errors = []*Error{newErr}
-	} else {
-		d.Errors = append(d.Errors, newErr)
-	}
-
 	// set document to error mode
+	d.Errors = append(d.Errors, newErr)
 	d.Mode = ErrorMode
-
 	return nil
 }
 
-/*
-First will return the first object from the document data if possible.
-*/
+// First will return the first object from the document data if possible.
 func (d *Document) First() *Object {
 	if !d.HasData() {
 		return nil
@@ -250,6 +231,7 @@ func (d *Document) HasErrors() bool {
 	return d.Errors != nil && len(d.Errors) > 0
 }
 
+// Error implements error for the Document type.
 func (d *Document) Error() string {
 	errStr := "Errors:"
 	for _, err := range d.Errors {
