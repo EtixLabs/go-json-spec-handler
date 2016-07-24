@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
+	"strings"
 
 	"github.com/asaskevich/govalidator"
 )
@@ -253,6 +253,19 @@ func (o *Object) process(action, resourceType string, model interface{}) ([]stri
 	return NewValidator(o, action).Validate(model)
 }
 
+// validateRelationships runs go-validator on each relationship of the struct and returns all errors.
+func validateRelationships(object *Object) ErrorList {
+	var errors ErrorList
+	for name, rel := range object.Relationships {
+		for _, resourceID := range rel.Data {
+			adapter := func(err govalidator.Error) *Error {
+				return RelationshipError(err.Err.Error(), name+"/data/"+strings.ToLower(err.Name))
+			}
+			errors = append(errors, validator(resourceID, adapter)...)
+		}
+	}
+	return errors
+}
 
 // validateInput runs go-validator on each attribute of the struct and returns all errors.
 func validateInput(target interface{}) ErrorList {

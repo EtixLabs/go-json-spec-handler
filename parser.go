@@ -157,14 +157,13 @@ func (p *Parser) Document(payload io.ReadCloser, mode DocumentMode) (*Document, 
 	if document.HasData() {
 		for _, object := range document.Data {
 
-			// TODO: currently this doesn't really do any user input
-			// validation since it is validating against the jsh
-			// "Object" type. Figure out how to options pass the
-			// corressponding user object struct in to enable this
-			// without making the API super clumsy.
-			inputErr := validateInput(object)
-			if inputErr != nil {
-				return nil, inputErr[0]
+			// NOTE: This doesn't do any user validation since it is
+			// validating against the jsh "Object" type.
+			if errlist := validateInput(object); errlist != nil {
+				return nil, errlist[0]
+			}
+			if errlist := validateRelationships(object); errlist != nil {
+				return nil, errlist[0]
 			}
 
 			// if we have a list, then all resource objects should have IDs, will
