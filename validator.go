@@ -9,20 +9,6 @@ import (
 	"strings"
 )
 
-const (
-	tagNameJSON    = "json"
-	tagIgnore      = "-"
-	tagNameJSH     = "jsh"
-	tagSep         = ","
-	tagToOne       = "one"
-	tagToMany      = "many"
-	tagCreate      = "create"
-	tagUpdate      = "update"
-	optionSep      = "/"
-	optionRequired = "required"
-	fieldSep       = "/"
-)
-
 // Validator provides validation features for resource modeling.
 type Validator struct {
 	object *Object

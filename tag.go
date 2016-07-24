@@ -12,6 +12,20 @@ import (
 	"unicode"
 )
 
+const (
+	tagNameJSON    = "json"
+	tagIgnore      = "-"
+	tagNameJSH     = "jsh"
+	tagSep         = ","
+	tagToOne       = "one"
+	tagToMany      = "many"
+	tagCreate      = "create"
+	tagUpdate      = "update"
+	optionSep      = "/"
+	optionRequired = "required"
+	fieldSep       = "/"
+)
+
 // tagOptions represents the options that can be passed to JSH tags.
 type tagOptions struct {
 	required bool
