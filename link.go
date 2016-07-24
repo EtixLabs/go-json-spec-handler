@@ -1,11 +1,22 @@
 package jsh
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Links is a top-level document field
 type Links struct {
 	Self    *Link `json:"self,omitempty"`
 	Related *Link `json:"related,omitempty"`
+}
+
+// NewRelationshipLinks creates a new pair of relationship links encoded as a string.
+func NewRelationshipLinks(id interface{}, resource, name string) *Links {
+	return &Links{
+		Self:    NewRelationshipLink(id, resource, name, true),
+		Related: NewRelationshipLink(id, resource, name, false),
+	}
 }
 
 // Link is a resource link that can encode as a string or as an object
@@ -19,6 +30,20 @@ type Link struct {
 func NewLink(href string) *Link {
 	return &Link{
 		HREF: href,
+	}
+}
+
+// NewSelfLink creates a new self link encoded as a string.
+func NewSelfLink(id interface{}, resource string) *Link {
+	return NewLink(fmt.Sprintf("/%s/%v", resource, id))
+}
+
+// NewRelationshipLink creates a new relationship link encoded as a string.
+func NewRelationshipLink(id interface{}, resource, name string, relationship bool) *Link {
+	if relationship {
+		return NewLink(fmt.Sprintf("/%s/%v/relationships/%s", resource, id, name))
+	} else {
+		return NewLink(fmt.Sprintf("/%s/%v/%s", resource, id, name))
 	}
 }
 
