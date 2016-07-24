@@ -6,8 +6,13 @@ import (
 	"net/http"
 )
 
-// List is just a wrapper around an object array that implements Sendable
+// List is a wrapper around an object slice that implements Sendable.
+// List implements sort.Interface for []*Object based on the ID field.
 type List []*Object
+
+func (l List) Len() int           { return len(l) }
+func (l List) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
+func (l List) Less(i, j int) bool { return l[i].ID < l[j].ID }
 
 /*
 Validate ensures that List is JSON API compatible.
