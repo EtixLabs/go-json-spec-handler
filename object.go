@@ -64,7 +64,7 @@ specifying each struct attribute that failed. In this case, all you need to do i
 func (o *Object) Unmarshal(resourceType string, target interface{}) ErrorList {
 
 	if resourceType != o.Type {
-		return []*Error{ConflictError(o.Type, "")}
+		return ErrorList{ConflictError(o.Type, "")}
 	}
 
 	if len(o.Attributes) == 0 {
@@ -106,9 +106,7 @@ setting the Object's Status attribute to be used as the Response HTTP Code if on
 has not already been set.
 */
 func (o *Object) Validate(r *http.Request, response bool) *Error {
-
 	if o.ID == "" {
-
 		// don't error if the client is attempting to performing a POST request, in
 		// which case, ID shouldn't actually be set
 		if !response && r.Method != "POST" {
@@ -132,7 +130,6 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 		}
 
 		o.Status = http.StatusCreated
-		break
 	case "PATCH":
 		acceptable := map[int]bool{200: true, 202: true, 204: true}
 
@@ -143,13 +140,11 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 			break
 		}
 
-		o.Status = http.StatusOK
-		break
+		fallthrough
 	case "HEAD":
 		fallthrough
 	case "GET":
 		o.Status = http.StatusOK
-		break
 	// If we hit this it means someone is attempting to use an unsupported HTTP
 	// method. Return a 406 error instead
 	default:

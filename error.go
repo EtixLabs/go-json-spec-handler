@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 )
 
 /*
@@ -232,7 +233,23 @@ func InputError(msg string, attribute string) *Error {
 		Detail: msg,
 		Status: 422,
 		Source: &ErrorSource{
-			Pointer: fmt.Sprintf("/data/attributes/%s", strings.ToLower(attribute)),
+			Pointer: AttributePointer(attribute),
+		},
+	}
+}
+
+/*
+RelationshipError creates a properly formatted HTTP Status 422 error with an appropriate
+user safe message. The parameter "relationship" will format err.Source.Pointer to be
+"/data/relationship/<attribute>".
+*/
+func RelationshipError(msg string, relationship string) *Error {
+	return &Error{
+		Title:  "Invalid Relationship",
+		Detail: msg,
+		Status: 422,
+		Source: &ErrorSource{
+			Pointer: RelationshipPointer(relationship),
 		},
 	}
 }
@@ -249,4 +266,33 @@ func ISE(internalMessage string) *Error {
 		Status: http.StatusInternalServerError,
 		ISE:    internalMessage,
 	}
+}
+
+// NotImplemented is a convenience function similar to ISE except if generates a 501 response.
+func NotImplemented(internalMessage string) *Error {
+	return &Error{
+		Title:  "Not implemented",
+		Status: http.StatusNotImplemented,
+		ISE:    internalMessage,
+	}
+}
+
+// AttributePointer returns a JSON pointer to the given attribute in a JSON API document.
+func AttributePointer(attribute string) string {
+	return fmt.Sprintf("/data/attributes/%s", attribute)
+}
+
+// RelationshipPointer returns a JSON pointer to the given primary resource relationship in a JSON API document.
+func RelationshipPointer(relationship string) string {
+	return fmt.Sprintf("/data/relationships/%s", relationship)
+}
+
+// toLowerFirstRune changes the first rune of the given string to lower case.
+func toLowerFirstRune(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	a := []rune(s)
+	a[0] = unicode.ToLower(a[0])
+	return string(a)
 }
