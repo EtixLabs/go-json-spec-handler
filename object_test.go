@@ -23,6 +23,12 @@ func TestObject(t *testing.T) {
 
 		Convey("->NewObject()", func() {
 
+			Convey("should create a new object with no attributes", func() {
+				newObj, err := NewObject(testObject.ID, testObject.Type, nil)
+				So(err, ShouldBeNil)
+				So(newObj.Attributes, ShouldBeEmpty)
+			})
+
 			Convey("should create a new object with populated attrs", func() {
 				attrs := struct {
 					Foo string `json:"foo"`
@@ -310,6 +316,17 @@ func TestObject(t *testing.T) {
 					ID  string
 					Foo string `json:"foo"`
 				}{}
+
+				Convey("Should accept empty attributes", func() {
+					object := &Object{
+						ID:         "ID123",
+						Type:       "testObject",
+						Attributes: json.RawMessage{},
+					}
+					err := object.Unmarshal("testObject", &testConversion)
+					So(err, ShouldBeNil)
+					So(testConversion.Foo, ShouldBeEmpty)
+				})
 
 				Convey("Should successfully populate a valid struct", func() {
 					err := testObject.Unmarshal("testObject", &testConversion)

@@ -31,13 +31,9 @@ func NewObject(id string, resourceType string, attributes interface{}) (*Object,
 		Links:         map[string]*Link{},
 		Relationships: map[string]*Relationship{},
 	}
-
-	rawJSON, err := json.MarshalIndent(attributes, "", " ")
-	if err != nil {
-		return nil, ISE(fmt.Sprintf("Error marshaling attrs while creating a new JSON Object: %s", err))
+	if err := object.Marshal(attributes); err != nil {
+		return nil, err
 	}
-
-	object.Attributes = rawJSON
 	return object, nil
 }
 
@@ -71,6 +67,10 @@ func (o *Object) Unmarshal(resourceType string, target interface{}) ErrorList {
 		return []*Error{ConflictError(o.Type, "")}
 	}
 
+	if len(o.Attributes) == 0 {
+		return nil
+	}
+
 	jsonErr := json.Unmarshal(o.Attributes, target)
 	if jsonErr != nil {
 		return []*Error{BadRequestError(fmt.Sprintf(
@@ -87,6 +87,10 @@ Marshal allows you to load a modified payload back into an object to preserve
 all of the data it has.
 */
 func (o *Object) Marshal(attributes interface{}) *Error {
+	if attributes == nil {
+		o.Attributes = json.RawMessage{}
+		return nil
+	}
 	raw, err := json.MarshalIndent(attributes, "", " ")
 	if err != nil {
 		return ISE(fmt.Sprintf("Error marshaling attrs while creating a new JSON Object: %s", err))
