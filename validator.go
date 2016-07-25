@@ -44,7 +44,7 @@ Additionally, relationships fields must fulfill the following requirements:
 	- The JSON tag of the field should be "-" to prevent it from being included in attributes.
 	- If the relationship is tagged "one", the type of the field must be *jsh.IDObject.
 	- If the relationship is tagged "many", the type of the field must be either:
-		map[int]*jsh.IDObject or map[int]*jsh.IDObject. The map must be non-nil.
+		map[string]*jsh.IDObject or map[int]*jsh.IDObject. The map must be non-nil.
 
 Example model:
 
