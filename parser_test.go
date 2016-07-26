@@ -54,8 +54,17 @@ func TestParsing(t *testing.T) {
 				So(object.Type, ShouldEqual, "user")
 				So(object.ID, ShouldEqual, "sweetID123")
 				So(object.Attributes, ShouldResemble, json.RawMessage(`{"ID":"123"}`))
-				So(object.Relationships["company"], ShouldResemble, &Relationship{Data: IDList{&IDObject{Type: "company", ID: "companyID123"}}})
-				So(object.Relationships["comments"], ShouldResemble, &Relationship{Data: IDList{{Type: "comments", ID: "commentID123"}, {Type: "comments", ID: "commentID456"}}})
+				So(object.Relationships["company"], ShouldResemble, &Relationship{
+					Data: IDList{
+						{Type: "company", ID: "companyID123"},
+					},
+				})
+				So(object.Relationships["comments"], ShouldResemble, &Relationship{
+					Data: IDList{
+						{Type: "comments", ID: "commentID123"},
+						{Type: "comments", ID: "commentID456"},
+					},
+				})
 			})
 
 			Convey("should reject an object with missing attributes", func() {
