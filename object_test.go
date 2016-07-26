@@ -770,10 +770,10 @@ func TestObject(t *testing.T) {
 				Convey("Should accept empty attributes", func() {
 					object := &Object{
 						ID:         "ID123",
-						Type:       "testObject",
+						Type:       testType,
 						Attributes: json.RawMessage{},
 					}
-					err := object.Unmarshal("testObject", &testConversion)
+					err := object.Unmarshal(testType, &testConversion)
 					So(err, ShouldBeNil)
 					So(testConversion.Foo, ShouldBeEmpty)
 				})
