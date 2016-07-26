@@ -40,12 +40,26 @@ func TestSend(t *testing.T) {
 					So(contentLength, ShouldBeGreaterThan, 0)
 					So(writer.HeaderMap.Get("Content-Type"), ShouldEqual, ContentType)
 				})
+
+				Convey("should send validation error if payload validation fails", func() {
+					object.Type = ""
+					request.Method = "GET"
+
+					err := Send(writer, request, object)
+					So(err, ShouldNotBeNil)
+					So(writer.Code, ShouldEqual, http.StatusNotAcceptable)
+
+					contentLength, convErr := strconv.Atoi(writer.HeaderMap.Get("Content-Length"))
+					So(convErr, ShouldBeNil)
+					So(contentLength, ShouldBeGreaterThan, 0)
+					So(writer.HeaderMap.Get("Content-Type"), ShouldEqual, ContentType)
+				})
 			})
 		})
 
 		Convey("->Ok()", func() {
 			doc := Ok()
-			err := SendDocument(writer, request, doc)
+			err := Send(writer, request, doc)
 			So(err, ShouldBeNil)
 			So(writer.Code, ShouldEqual, http.StatusOK)
 		})
