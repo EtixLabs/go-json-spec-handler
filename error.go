@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 )
 
 /*
@@ -11,7 +12,7 @@ DefaultError can be customized in order to provide a more customized error
 Detail message when an Internal Server Error occurs. Optionally, you can modify
 a returned jsh.Error before sending it as a response as well.
 */
-var DefaultErrorDetail = "Request failed, something went wrong."
+var DefaultErrorDetail = "Request failed, something went wrong"
 
 // DefaultTitle can be customized to provide a more customized ISE Title
 var DefaultErrorTitle = "Internal Server Error"
@@ -69,6 +70,12 @@ func (e ErrorList) StatusCode() int {
 	return e[0].Status
 }
 
+// ErrorSource represents the source of a JSONAPI error, either by a pointer or a query parameter name.
+type ErrorSource struct {
+	Pointer   string `json:"pointer,omitempty"`
+	Parameter string `json:"parameter,omitempty"`
+}
+
 /*
 Error consists of a number of contextual attributes to make conveying
 certain error type simpler as per the JSON API specification:
@@ -83,13 +90,12 @@ http://jsonapi.org/format/#error-objects
 	jsh.Send(w, r, error)
 */
 type Error struct {
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	Status int    `json:"status,string"`
-	Source struct {
-		Pointer string `json:"pointer"`
-	} `json:"source"`
-	ISE string `json:"-"`
+	Status int          `json:"status,string"`
+	Code   string       `json:"code,omitempty"`
+	Title  string       `json:"title,omitempty"`
+	Detail string       `json:"detail,omitempty"`
+	Source *ErrorSource `json:"source,omitempty"`
+	ISE    string       `json:"-"`
 }
 
 /*
@@ -99,19 +105,19 @@ to the end user, use err.SafeError() instead.
 */
 func (e *Error) Error() string {
 	msg := fmt.Sprintf("%d: %s - %s", e.Status, e.Title, e.Detail)
-	if e.Source.Pointer != "" {
-		msg += fmt.Sprintf("(Source.Pointer: %s)", e.Source.Pointer)
+	if e.Source != nil && e.Source.Pointer != "" {
+		msg += fmt.Sprintf(" (Source.Pointer: %s)", e.Source.Pointer)
 	}
 
 	if e.ISE != "" {
-		msg += fmt.Sprintf("\nInternal Error: %s", e.ISE)
+		msg += fmt.Sprintf(": %s", e.ISE)
 	}
 
 	return msg
 }
 
 /*
-Validate ensures that the an error meets all JSON API criteria.
+Validate ensures that the error meets all JSON API criteria.
 */
 func (e *Error) Validate(r *http.Request, response bool) *Error {
 
@@ -120,7 +126,7 @@ func (e *Error) Validate(r *http.Request, response bool) *Error {
 		return ISE(fmt.Sprintf("No HTTP Status set for error %+v\n", e))
 	case e.Status < 400 || e.Status > 600:
 		return ISE(fmt.Sprintf("HTTP Status out of valid range for error %+v\n", e))
-	case e.Status == 422 && e.Source.Pointer == "":
+	case e.Status == 422 && (e.Source == nil || e.Source.Pointer == ""):
 		return ISE(fmt.Sprintf("Source Pointer must be set for 422 Status error"))
 	}
 
@@ -132,6 +138,120 @@ StatusCode (HTTP) for the error. Defaults to 0.
 */
 func (e *Error) StatusCode() int {
 	return e.Status
+}
+
+// BadRequestError is a convenience function to return a 400 Bad Request response.
+func BadRequestError(msg string, detail string) *Error {
+	return &Error{
+		Title:  msg,
+		Detail: detail,
+		Status: http.StatusBadRequest,
+	}
+}
+
+/*
+ParameterError creates a properly formatted HTTP Status 400 error with an appropriate
+user safe message. The err.Source.Parameter field will be set to the parameter "param".
+*/
+func ParameterError(msg string, param string) *Error {
+	return &Error{
+		Title:  "Invalid Query Parameter",
+		Detail: msg,
+		Status: http.StatusBadRequest,
+		Source: &ErrorSource{
+			Parameter: strings.ToLower(param),
+		},
+	}
+}
+
+// ForbiddenError is used whenever an attempt to do a forbidden operation is made.
+func ForbiddenError(msg string) *Error {
+	return &Error{
+		Title:  msg,
+		Status: http.StatusForbidden,
+	}
+}
+
+// NotFound returns a 404 formatted error.
+func NotFound(resourceType string, id string) *Error {
+	return &Error{
+		Title:  "Not Found",
+		Detail: fmt.Sprintf("No resource of type '%s' exists for ID: %s", resourceType, id),
+		Status: http.StatusNotFound,
+	}
+}
+
+// SpecificationError returnss a 406 Not Acceptable.
+// It is used whenever the Client violates the JSON API Spec.
+func SpecificationError(detail string) *Error {
+	return &Error{
+		Title:  "JSON API Specification Error",
+		Detail: detail,
+		Status: http.StatusNotAcceptable,
+	}
+}
+
+// ConflictError returns a 409 Conflict error.
+func ConflictError(resourceType string, id string) *Error {
+	var detail string
+	if id == "" {
+		detail = fmt.Sprintf("Resource type '%s' does not match URL's", resourceType)
+	} else {
+		detail = fmt.Sprintf("ID '%s' does not match URL's", id)
+	}
+	return &Error{
+		Title:  "Resource conflict",
+		Detail: detail,
+		Status: http.StatusConflict,
+	}
+}
+
+// TopLevelError is used whenever the client sends a JSON payload with a missing top-level field.
+func TopLevelError(field string) *Error {
+	// NOTE: Here we should point to the top-level of the document (""),
+	// but as it is also the empty string value it would be ignored by marshalling.
+	// Instead we point to “/” even if it is an appropriate reference to
+	// the string `"some value"` in the request document `{"": "some value"}`.
+	// The detail message however eliminates the misunderstanding by specifying
+	// the name of the missing field.
+	err := &Error{
+		Detail: fmt.Sprintf("Missing `%s` at document's top level", strings.ToLower(field)),
+		Status: 422,
+		Source: &ErrorSource{Pointer: "/"},
+	}
+	return err
+}
+
+/*
+InputError creates a properly formatted HTTP Status 422 error with an appropriate
+user safe message. The parameter "attribute" will format err.Source.Pointer to be
+"/data/attributes/<attribute>".
+*/
+func InputError(msg string, attribute string) *Error {
+	return &Error{
+		Title:  "Invalid Attribute",
+		Detail: msg,
+		Status: 422,
+		Source: &ErrorSource{
+			Pointer: AttributePointer(attribute),
+		},
+	}
+}
+
+/*
+RelationshipError creates a properly formatted HTTP Status 422 error with an appropriate
+user safe message. The parameter "relationship" will format err.Source.Pointer to be
+"/data/relationship/<attribute>".
+*/
+func RelationshipError(msg string, relationship string) *Error {
+	return &Error{
+		Title:  "Invalid Relationship",
+		Detail: msg,
+		Status: 422,
+		Source: &ErrorSource{
+			Pointer: RelationshipPointer(relationship),
+		},
+	}
 }
 
 /*
@@ -148,38 +268,31 @@ func ISE(internalMessage string) *Error {
 	}
 }
 
-/*
-InputError creates a properly formatted HTTP Status 422 error with an appropriate
-user safe message. The parameter "attribute" will format err.Source.Pointer to be
-"/data/attributes/<attribute>".
-*/
-func InputError(msg string, attribute string) *Error {
-	err := &Error{
-		Title:  "Invalid Attribute",
-		Detail: msg,
-		Status: 422,
-	}
-
-	// Assign this after the fact, easier to do
-	err.Source.Pointer = fmt.Sprintf("/data/attributes/%s", strings.ToLower(attribute))
-
-	return err
-}
-
-// SpecificationError is used whenever the Client violates the JSON API Spec
-func SpecificationError(detail string) *Error {
+// NotImplemented is a convenience function similar to ISE except if generates a 501 response.
+func NotImplemented(internalMessage string) *Error {
 	return &Error{
-		Title:  "JSON API Specification Error",
-		Detail: detail,
-		Status: http.StatusNotAcceptable,
+		Title:  "Not implemented",
+		Status: http.StatusNotImplemented,
+		ISE:    internalMessage,
 	}
 }
 
-// NotFound returns a 404 formatted error
-func NotFound(resourceType string, id string) *Error {
-	return &Error{
-		Title:  "Not Found",
-		Detail: fmt.Sprintf("No resource of type '%s' exists for ID: %s", resourceType, id),
-		Status: http.StatusNotFound,
+// AttributePointer returns a JSON pointer to the given attribute in a JSON API document.
+func AttributePointer(attribute string) string {
+	return fmt.Sprintf("/data/attributes/%s", attribute)
+}
+
+// RelationshipPointer returns a JSON pointer to the given primary resource relationship in a JSON API document.
+func RelationshipPointer(relationship string) string {
+	return fmt.Sprintf("/data/relationships/%s", relationship)
+}
+
+// toLowerFirstRune changes the first rune of the given string to lower case.
+func toLowerFirstRune(s string) string {
+	if len(s) == 0 {
+		return s
 	}
+	a := []rune(s)
+	a[0] = unicode.ToLower(a[0])
+	return string(a)
 }

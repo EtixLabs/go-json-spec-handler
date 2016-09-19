@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strconv"
 	"testing"
 
@@ -28,10 +29,29 @@ func TestList(t *testing.T) {
 			So(err, ShouldBeNil)
 		})
 
-		Convey("->Send(list)", func() {
+		Convey("->Sort(List)", func() {
+			firstObject := &Object{
+				ID:         "ID1",
+				Type:       testObject.Type,
+				Attributes: testObject.Attributes,
+			}
+			thirdObject := &Object{
+				ID:         "ID456",
+				Type:       testObject.Type,
+				Attributes: testObject.Attributes,
+			}
+
+			testList = append(testList, thirdObject)
+			testList = append(testList, firstObject)
+			sort.Sort(testList)
+			So(testList[0].ID, ShouldEqual, firstObject.ID)
+			So(testList[1].ID, ShouldEqual, testObject.ID)
+			So(testList[2].ID, ShouldEqual, thirdObject.ID)
+		})
+
+		Convey("->Send(List)", func() {
 
 			Convey("should send a properly formatted List response", func() {
-
 				writer := httptest.NewRecorder()
 				err := Send(writer, req, testList)
 				So(err, ShouldBeNil)
@@ -49,14 +69,10 @@ func TestList(t *testing.T) {
 				So(parseErr, ShouldBeNil)
 				So(len(responseList), ShouldEqual, 1)
 			})
-		})
-
-		Convey("->Send(empty list)", func() {
 
 			Convey("should send a properly formatted empty List response", func() {
-
 				writer := httptest.NewRecorder()
-				err := Send(writer, req, List([]*Object{}))
+				err := Send(writer, req, List{})
 				So(err, ShouldBeNil)
 				So(writer.Code, ShouldEqual, http.StatusOK)
 
@@ -72,17 +88,19 @@ func TestList(t *testing.T) {
 				So(parseErr, ShouldBeNil)
 				So(len(responseList), ShouldEqual, 0)
 			})
-		})
 
-		Convey("->Send(nil list)", func() {
-
-			Convey("should fail with a 500 ISE", func() {
-
+			Convey("should reject nil List", func() {
 				writer := httptest.NewRecorder()
-				var list []*Object
-				err := Send(writer, req, List(list))
+				var list List
+				err := Send(writer, req, list)
 				So(err, ShouldNotBeNil)
 				So(writer.Code, ShouldEqual, http.StatusInternalServerError)
+			})
+
+			Convey("should accept empty List", func() {
+				writer := httptest.NewRecorder()
+				err := Send(writer, req, List{})
+				So(err, ShouldBeNil)
 			})
 		})
 

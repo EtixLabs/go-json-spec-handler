@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/derekdowling/go-json-spec-handler"
+	"github.com/EtixLabs/go-json-spec-handler"
 )
 
 /*
@@ -32,7 +32,6 @@ DumpBody is a convenience function that parses the body of the response into a
 string BUT DOESN'T close the ReadCloser. Useful for debugging.
 */
 func DumpBody(response *http.Response) (string, *jsh.Error) {
-
 	byteData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return "", jsh.ISE(fmt.Sprintf("Error attempting to read request body: %s", err.Error()))
@@ -52,7 +51,6 @@ func buildParser(response *http.Response) *jsh.Parser {
 setPath builds a JSON url.Path for a given resource type.
 */
 func setPath(url *url.URL, resource string) {
-
 	// ensure that path is "/" terminated before concatting resource
 	if url.Path != "" && !strings.HasSuffix(url.Path, "/") {
 		url.Path = url.Path + "/"
@@ -66,7 +64,7 @@ func setPath(url *url.URL, resource string) {
 setIDPath creates a JSON url.Path for a specific resource type including an
 ID specifier.
 */
-func setIDPath(url *url.URL, resource string, id string) {
+func setIDPath(url *url.URL, resource, id string) {
 	setPath(url, resource)
 
 	// concat "/:id" if not empty
@@ -80,20 +78,18 @@ prepareBody first prepares/validates the object to ensure it is JSON
 spec compatible, and then marshals it to JSON, sets the request body and
 corresponding attributes.
 */
-func prepareBody(request *http.Request, object *jsh.Object) error {
-
-	err := object.Validate(request, false)
+func prepareBody(request *http.Request, payload jsh.Sendable) error {
+	err := payload.Validate(request, false)
 	if err != nil {
-		return fmt.Errorf("Error preparing object: %s", err.Error())
+		return fmt.Errorf("Error preparing object: %v", err)
 	}
 
-	doc := jsh.Build(object)
+	doc := jsh.Build(payload)
 
 	jsonContent, jsonErr := json.MarshalIndent(doc, "", " ")
 	if jsonErr != nil {
-		return fmt.Errorf("Unable to prepare JSON content: %s", jsonErr.Error())
+		return fmt.Errorf("Unable to prepare JSON content: %v", jsonErr)
 	}
-
 	request.Body = jsh.CreateReadCloser(jsonContent)
 	request.ContentLength = int64(len(jsonContent))
 
@@ -111,7 +107,6 @@ for times when you want to send a request to a custom endpoint, but would still
 like a JSONAPI response.
 */
 func Do(request *http.Request, mode jsh.DocumentMode) (*jsh.Document, *http.Response, error) {
-
 	client := &http.Client{}
 	response, clientErr := client.Do(request)
 
@@ -134,10 +129,10 @@ ParseResponse handles parsing an HTTP response into a JSON Document if
 possible.
 */
 func ParseResponse(response *http.Response, mode jsh.DocumentMode) (*jsh.Document, error) {
-
 	skipCodes := []int{
 		http.StatusNoContent,
 		http.StatusNotFound,
+		http.StatusMethodNotAllowed,
 	}
 
 	for _, code := range skipCodes {
@@ -156,7 +151,7 @@ func ParseResponse(response *http.Response, mode jsh.DocumentMode) (*jsh.Documen
 
 // NewRequest builds a basic request object with the necessary configurations to
 // achieve JSON API compatibility
-func NewRequest(method string, urlStr string, body io.Reader) (*http.Request, error) {
+func NewRequest(method, urlStr string, body io.Reader) (*http.Request, error) {
 	request, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return nil, err
@@ -164,6 +159,5 @@ func NewRequest(method string, urlStr string, body io.Reader) (*http.Request, er
 
 	request.Header.Set("Content-Type", jsh.ContentType)
 	request.Header.Set("Content-Length", strconv.Itoa(int(request.ContentLength)))
-
 	return request, err
 }

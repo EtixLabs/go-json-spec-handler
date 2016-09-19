@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/derekdowling/go-json-spec-handler"
-	"github.com/derekdowling/jsh-api"
+	"github.com/EtixLabs/go-json-spec-handler"
+	"github.com/EtixLabs/jsh-api"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -67,7 +67,6 @@ func TestResponseParsing(t *testing.T) {
 	Convey("Response Parsing Tests", t, func() {
 
 		Convey("Parse Object", func() {
-
 			obj, objErr := jsh.NewObject("123", "test", map[string]string{"test": "test"})
 			So(objErr, ShouldBeNil)
 
@@ -84,7 +83,6 @@ func TestResponseParsing(t *testing.T) {
 		})
 
 		Convey("Parse List", func() {
-
 			obj, objErr := jsh.NewObject("123", "test", map[string]string{"test": "test"})
 			So(objErr, ShouldBeNil)
 
@@ -107,19 +105,33 @@ func TestResponseParsing(t *testing.T) {
 // not a great for this, would much rather have it in test_util, but it causes an
 // import cycle wit jsh-api
 func testAPI() *jshapi.API {
-
+	// Create mock resource
 	resource := jshapi.NewMockResource("tests", 1, nil)
-	resource.Action("testAction", func(ctx context.Context, id string) (*jsh.Object, jsh.ErrorType) {
+	// Add to-one relationship
+	toOne := &jshapi.MockToOneStorage{
+		ResourceType:       "foos",
+		ResourceAttributes: map[string]string{"bar": "bar"},
+	}
+	resource.ToOne("foo", toOne)
+	// Add to-many relationship
+	toMany := &jshapi.MockToManyStorage{
+		ResourceType:       "foos",
+		ResourceAttributes: map[string]string{"bar": "bar"},
+		ListCount:          1,
+	}
+	resource.ToMany("foos", toMany)
+	// Add action
+	actionHandler := func(ctx context.Context, w http.ResponseWriter, r *http.Request) (*jsh.Object, jsh.ErrorType) {
 		object, err := jsh.NewObject("1", "tests", []string{"testAction"})
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-
 		return object, nil
-	})
+	}
+	resource.Action("testAction", actionHandler)
 
 	api := jshapi.New("")
 	api.Add(resource)
-
+	api.Action("testAction", actionHandler)
 	return api
 }

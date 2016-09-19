@@ -2,9 +2,9 @@
 // requests and send responses that match the JSON API Specification: http://jsonapi.org/
 // from your server.
 //
-// For a request client, see: jsc: https://godoc.org/github.com/derekdowling/go-json-spec-handler/client
+// For a request client, see: jsc: https://godoc.org/github.com/EtixLabs/go-json-spec-handler/client
 //
-// For a full http.Handler API builder see jshapi: https://godoc.org/github.com/derekdowling/jsh-api
+// For a full http.Handler API builder see jshapi: https://godoc.org/github.com/EtixLabs/jsh-api
 package jsh
 
 const (

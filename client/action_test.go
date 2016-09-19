@@ -18,8 +18,15 @@ func TestAction(t *testing.T) {
 
 		baseURL := server.URL
 
+		Convey("->TopLevelAction()", func() {
+			doc, resp, err := TopLevelAction(baseURL, "testAction", nil)
+			So(err, ShouldBeNil)
+			So(resp.StatusCode, ShouldEqual, http.StatusOK)
+			So(doc, ShouldNotBeEmpty)
+		})
+
 		Convey("->Action()", func() {
-			doc, resp, err := Action(baseURL, "tests", "1", "testAction")
+			doc, resp, err := Action(baseURL, "tests", "1", "testAction", nil)
 			So(err, ShouldBeNil)
 			So(resp.StatusCode, ShouldEqual, http.StatusOK)
 			So(doc, ShouldNotBeEmpty)

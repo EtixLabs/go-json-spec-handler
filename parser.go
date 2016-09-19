@@ -49,7 +49,7 @@ func ParseObject(r *http.Request) (*Object, *Error) {
 	}
 
 	if !document.HasData() {
-		return nil, nil
+		return nil, TopLevelError("data")
 	}
 
 	object := document.First()
@@ -60,10 +60,8 @@ func ParseObject(r *http.Request) (*Object, *Error) {
 	return object, nil
 }
 
-/*
-ParseList validates the HTTP request and returns a resulting list of objects
-parsed from the request Body. Use just like ParseObject.
-*/
+// ParseList validates the HTTP request and returns a list of resource objects
+// parsed from the request Body. Use just like ParseObject.
 func ParseList(r *http.Request) (List, *Error) {
 	document, err := ParseDoc(r, ListMode)
 	if err != nil {
@@ -71,6 +69,43 @@ func ParseList(r *http.Request) (List, *Error) {
 	}
 
 	return document.Data, nil
+}
+
+// ParseRelationship validates the HTTP request and returns a relationship object.
+// Use just like ParseObject.
+func ParseRelationship(r *http.Request) (*IDObject, *Error) {
+	document, err := ParseDoc(r, ObjectMode)
+	if err != nil {
+		return nil, err
+	}
+	// Return nil if the document has no data (delete to-one relationship)
+	if !document.HasData() {
+		return nil, nil
+	}
+
+	object := document.First()
+	if object.ID == "" {
+		return nil, InputError("Missing mandatory object attribute", "id")
+	}
+	return NewIDObject(object.Type, object.ID), nil
+}
+
+/*
+ParseRelationshipList validates the HTTP request and returns a list of relationship objects
+parsed from the request Body. Use just like ParseList.
+*/
+func ParseRelationshipList(r *http.Request) (IDList, *Error) {
+	document, err := ParseDoc(r, ListMode)
+	if err != nil {
+		return nil, err
+	}
+
+	var list IDList
+	for _, object := range document.Data {
+		list = append(list, NewIDObject(object.Type, object.ID))
+	}
+
+	return list, nil
 }
 
 /*
@@ -115,21 +150,20 @@ func (p *Parser) Document(payload io.ReadCloser, mode DocumentMode) (*Document, 
 
 	decodeErr := json.NewDecoder(payload).Decode(document)
 	if decodeErr != nil {
-		return nil, ISE(fmt.Sprintf("Error parsing JSON Document: %s", decodeErr.Error()))
+		return nil, BadRequestError("Invalid JSON Document", decodeErr.Error())
 	}
 
 	// If the document has data, validate against specification
 	if document.HasData() {
 		for _, object := range document.Data {
 
-			// TODO: currently this doesn't really do any user input
-			// validation since it is validating against the jsh
-			// "Object" type. Figure out how to options pass the
-			// corressponding user object struct in to enable this
-			// without making the API super clumsy.
-			inputErr := validateInput(object)
-			if inputErr != nil {
-				return nil, inputErr[0]
+			// NOTE: This doesn't do any user validation since it is
+			// validating against the jsh "Object" type.
+			if errlist := validateInput(object); errlist != nil {
+				return nil, errlist[0]
+			}
+			if errlist := validateRelationships(object); errlist != nil {
+				return nil, errlist[0]
 			}
 
 			// if we have a list, then all resource objects should have IDs, will

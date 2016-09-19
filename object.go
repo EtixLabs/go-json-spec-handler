@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/asaskevich/govalidator"
 )
@@ -30,13 +31,9 @@ func NewObject(id string, resourceType string, attributes interface{}) (*Object,
 		Links:         map[string]*Link{},
 		Relationships: map[string]*Relationship{},
 	}
-
-	rawJSON, err := json.MarshalIndent(attributes, "", " ")
-	if err != nil {
-		return nil, ISE(fmt.Sprintf("Error marshaling attrs while creating a new JSON Object: %s", err))
+	if err := object.Marshal(attributes); err != nil {
+		return nil, err
 	}
-
-	object.Attributes = rawJSON
 	return object, nil
 }
 
@@ -67,21 +64,19 @@ specifying each struct attribute that failed. In this case, all you need to do i
 func (o *Object) Unmarshal(resourceType string, target interface{}) ErrorList {
 
 	if resourceType != o.Type {
-		return []*Error{ISE(fmt.Sprintf(
-			"Expected type %s, when converting actual type: %s",
-			resourceType,
-			o.Type,
-		))}
+		return ErrorList{ConflictError(o.Type, "")}
+	}
+
+	if len(o.Attributes) == 0 {
+		return nil
 	}
 
 	jsonErr := json.Unmarshal(o.Attributes, target)
 	if jsonErr != nil {
-		return []*Error{ISE(fmt.Sprintf(
-			"For type '%s' unable to marshal: %s\nError:%s",
+		return []*Error{BadRequestError(fmt.Sprintf(
+			"For type '%s' unable to unmarshal",
 			resourceType,
-			string(o.Attributes),
-			jsonErr.Error(),
-		))}
+		), jsonErr.Error())}
 	}
 
 	return validateInput(target)
@@ -92,6 +87,10 @@ Marshal allows you to load a modified payload back into an object to preserve
 all of the data it has.
 */
 func (o *Object) Marshal(attributes interface{}) *Error {
+	if attributes == nil {
+		o.Attributes = json.RawMessage{}
+		return nil
+	}
 	raw, err := json.MarshalIndent(attributes, "", " ")
 	if err != nil {
 		return ISE(fmt.Sprintf("Error marshaling attrs while creating a new JSON Object: %s", err))
@@ -107,9 +106,7 @@ setting the Object's Status attribute to be used as the Response HTTP Code if on
 has not already been set.
 */
 func (o *Object) Validate(r *http.Request, response bool) *Error {
-
 	if o.ID == "" {
-
 		// don't error if the client is attempting to performing a POST request, in
 		// which case, ID shouldn't actually be set
 		if !response && r.Method != "POST" {
@@ -123,17 +120,16 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 
 	switch r.Method {
 	case "POST":
-		acceptable := map[int]bool{201: true, 202: true, 204: true}
+		acceptable := map[int]bool{200: true, 201: true, 202: true, 204: true}
 
 		if o.Status != 0 {
 			if _, validCode := acceptable[o.Status]; !validCode {
-				return SpecificationError("POST Status must be one of 201, 202, or 204.")
+				return SpecificationError("POST Status must be one of 200, 201, 202, or 204.")
 			}
 			break
 		}
 
 		o.Status = http.StatusCreated
-		break
 	case "PATCH":
 		acceptable := map[int]bool{200: true, 202: true, 204: true}
 
@@ -144,11 +140,12 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 			break
 		}
 
-		o.Status = http.StatusOK
-		break
+		fallthrough
+	case "HEAD":
+		fallthrough
 	case "GET":
 		o.Status = http.StatusOK
-		break
+	case "DELETE":
 	// If we hit this it means someone is attempting to use an unsupported HTTP
 	// method. Return a 406 error instead
 	default:
@@ -161,6 +158,80 @@ func (o *Object) Validate(r *http.Request, response bool) *Error {
 	return nil
 }
 
+// AddSelfLink creates a new self link and adds it to the resource object links.
+func (o *Object) AddSelfLink() {
+	o.Links["self"] = NewSelfLink(o.ID, o.Type)
+}
+
+// AddRelationshipLinks creates a new relationship link and adds it to the resource object relationships.
+func (o *Object) AddRelationshipLinks(name string) {
+	o.Relationships[name] = &Relationship{
+		Links: NewRelationshipLinks(o.ID, o.Type, name),
+	}
+}
+
+// AddRelationshipOne sets the resource linkage of the resource object for the given to-one relationship.
+func (o *Object) AddRelationshipOne(name string, linkage *IDObject) {
+	o.Relationships[name] = &Relationship{
+		Data: IDList{linkage},
+	}
+}
+
+// AddRelationshipMany sets the resource linkage of the resource object for the given to-many relationship.
+func (o *Object) AddRelationshipMany(name string, linkage IDList) {
+	o.Relationships[name] = &Relationship{
+		Data: linkage,
+	}
+}
+
+/*
+ProcessCreate unmarshals the object to the given struct (see Object.Unmarshal) and uses JSH tags
+to validate that there is no missing attributes or forbidden ones.
+
+Simply define your struct with jsh tags to allow for the model to be created with the tagged attributes.
+
+	struct {
+		Username string `json:"username" jsh:"create"`
+	}
+
+You can also add a required option to ensure a specific attribute is non-zero.
+
+	struct {
+		Username string `json:"username" jsh:"create/required"`
+	}
+
+The model must be a non-nil pointer to a struct.
+If valid, the model contains the valid request attributes after the call (even on validation error).
+Relationship fields, if any, are set to the IDObject values in object.Relationships.
+
+See the documentation of Validator.Validate for more detailed information.
+
+The string slice returned contains the names of the attributes and relationships
+that were unmarshaled to the model.
+*/
+func (o *Object) ProcessCreate(resourceType string, model interface{}) ([]string, ErrorList) {
+	return o.process(tagCreate, resourceType, model)
+}
+
+// ProcessUpdate behaves just like ProcessCreate but uses the update tag for validation.
+// It also adds the constraint of requiring at least one field to be updated.
+func (o *Object) ProcessUpdate(resourceType string, model interface{}) ([]string, ErrorList) {
+	attrs, err := o.process(tagUpdate, resourceType, model)
+	if err != nil {
+		return nil, err
+	}
+	// Return 400 if no attributes were provided.
+	if len(attrs) == 0 {
+		return nil, ErrorList{BadRequestError("Invalid patch document", "Missing description of changes")}
+	}
+	return attrs, nil
+}
+
+// ToIDObject returns a resource identifier object created with the object type and ID.
+func (o *Object) ToIDObject() *IDObject {
+	return NewIDObject(o.Type, o.ID)
+}
+
 // String prints a formatted string representation of the object
 func (o *Object) String() string {
 	raw, err := json.MarshalIndent(o, "", " ")
@@ -171,29 +242,56 @@ func (o *Object) String() string {
 	return string(raw)
 }
 
-// validateInput runs go-validator on each attribute on the struct and returns all
-// errors that it picks up
-func validateInput(target interface{}) ErrorList {
+// process validates that the object's attributes are valid for the given action.
+// It unmarshals the attributes to the model's fields that are tagged with the action.
+func (o *Object) process(action, resourceType string, model interface{}) ([]string, ErrorList) {
+	// Unmarshal to model and validates input against govalidator rules
+	err := o.Unmarshal(resourceType, model)
+	if err != nil {
+		return nil, err
+	}
+	// Look for missing/forbidden attributes and relationships for action
+	return NewValidator(o, action).Validate(model)
+}
 
-	_, validationError := govalidator.ValidateStruct(target)
-	if validationError != nil {
-
-		errorList, isType := validationError.(govalidator.Errors)
-		if isType {
-
-			errors := ErrorList{}
-			for _, singleErr := range errorList.Errors() {
-
-				// parse out validation error
-				goValidErr, _ := singleErr.(govalidator.Error)
-				inputErr := InputError(goValidErr.Err.Error(), goValidErr.Name)
-
-				errors = append(errors, inputErr)
+// validateRelationships runs go-validator on each relationship of the struct and returns all errors.
+func validateRelationships(object *Object) ErrorList {
+	var errors ErrorList
+	for name, rel := range object.Relationships {
+		for _, resourceID := range rel.Data {
+			adapter := func(err govalidator.Error) *Error {
+				return RelationshipError(err.Err.Error(), name+"/data/"+strings.ToLower(err.Name))
 			}
+			errors = append(errors, validator(resourceID, adapter)...)
+		}
+	}
+	return errors
+}
 
+// validateInput runs go-validator on each attribute of the struct and returns all errors.
+func validateInput(target interface{}) ErrorList {
+	adapter := func(err govalidator.Error) *Error {
+		return InputError(err.Err.Error(), toLowerFirstRune(err.Name))
+	}
+	return validator(target, adapter)
+}
+
+// validator runs go-validator on each attribute of the struct and
+// converts the errors to jsh errors by using the provided adapter.
+// It returns all errors that it picks up converted.
+func validator(target interface{}, adapter func(govalidator.Error) *Error) ErrorList {
+	_, errors := govalidator.ValidateStruct(target)
+	if errors != nil {
+		errorList, ok := errors.(govalidator.Errors)
+		if ok {
+			var errors ErrorList
+			for _, err := range errorList.Errors() {
+				// parse out validation error
+				validatorErr, _ := err.(govalidator.Error)
+				errors = append(errors, adapter(validatorErr))
+			}
 			return errors
 		}
 	}
-
 	return nil
 }

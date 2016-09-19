@@ -20,6 +20,16 @@ const (
 	ErrorMode
 )
 
+// IncludeJSONAPIVersion is an option that allows consumers to include/remove the `jsonapi`
+// top-level member from server responses.
+var IncludeJSONAPIVersion = true
+
+// JSONAPI is the top-level member of a JSONAPI document that includes
+// the server compatible version of the JSONAPI specification.
+type JSONAPI struct {
+	Version string `json:"version"`
+}
+
 /*
 Document represents a top level JSON formatted Document.
 Refer to the JSON API Specification for a full descriptor
@@ -29,12 +39,10 @@ type Document struct {
 	Data List `json:"data"`
 	// Object   *Object     `json:"-"`
 	Errors   ErrorList   `json:"errors,omitempty"`
-	Links    *Link       `json:"links,omitempty"`
+	Links    *Links      `json:"links,omitempty"`
 	Included []*Object   `json:"included,omitempty"`
 	Meta     interface{} `json:"meta,omitempty"`
-	JSONAPI  struct {
-		Version string `json:"version"`
-	} `json:"jsonapi"`
+	JSONAPI  *JSONAPI    `json:"jsonapi,omitempty"`
 	// Status is an HTTP Status Code
 	Status int `json:"-"`
 	// DataMode to enforce for the document
@@ -53,7 +61,11 @@ New instantiates a new JSON Document object.
 */
 func New() *Document {
 	json := &Document{}
-	json.JSONAPI.Version = JSONAPIVersion
+	if IncludeJSONAPIVersion {
+		json.JSONAPI = &JSONAPI{
+			Version: JSONAPIVersion,
+		}
+	}
 
 	return json
 }
@@ -67,34 +79,38 @@ func Build(payload Sendable) *Document {
 	document := New()
 	document.validated = true
 
-	object, isObject := payload.(*Object)
-	if isObject {
-		document.Data = List{object}
-		document.Status = object.Status
+	switch p := payload.(type) {
+	case *Document:
+		document = p
+	case *Object:
+		document.Data = List{p}
+		document.Status = p.Status
 		document.Mode = ObjectMode
-	}
-
-	list, isList := payload.(List)
-	if isList {
-		document.Data = list
+	case List:
+		document.Data = p
 		document.Status = http.StatusOK
 		document.Mode = ListMode
-	}
-
-	err, isError := payload.(*Error)
-	if isError {
-		document.Errors = ErrorList{err}
-		document.Status = err.Status
+	case *IDObject:
+		if p == nil {
+			document.Data = nil
+		} else {
+			document.Data = List{p.ToObject()}
+		}
+		document.Status = http.StatusOK
+		document.Mode = ObjectMode
+	case IDList:
+		document.Data = p.ToList()
+		document.Status = http.StatusOK
+		document.Mode = ListMode
+	case *Error:
+		document.Errors = ErrorList{p}
+		document.Status = p.Status
+		document.Mode = ErrorMode
+	case ErrorList:
+		document.Errors = p
+		document.Status = p[0].Status
 		document.Mode = ErrorMode
 	}
-
-	errorList, isErrorList := payload.(ErrorList)
-	if isErrorList {
-		document.Errors = errorList
-		document.Status = errorList[0].Status
-		document.Mode = ErrorMode
-	}
-
 	return document
 }
 
@@ -157,15 +173,13 @@ func (d *Document) Validate(r *http.Request, isResponse bool) *Error {
 	return nil
 }
 
-// AddObject adds another object to the JSON Document after validating it.
+// AddObject adds another object to the JSON Document.
 func (d *Document) AddObject(object *Object) *Error {
-
 	if d.Mode == ErrorMode {
-		return ISE("Cannot add data to a document already possessing errors")
+		return ISE("Invalid attempt to add data to an error document")
 	}
-
 	if d.Mode == ObjectMode && len(d.Data) == 1 {
-		return ISE("Single 'data' object response is expected, you are attempting to add more than one element to be returned")
+		return ISE("Invalid attempt to add multiple objects to a single object document")
 	}
 
 	// if not yet set, add the associated HTTP status with the object
@@ -174,48 +188,31 @@ func (d *Document) AddObject(object *Object) *Error {
 	}
 
 	// finally, actually add the object to data List
-	if d.Data == nil {
-		d.Data = List{object}
-	} else {
-		d.Data = append(d.Data, object)
-	}
-
+	d.Data = append(d.Data, object)
 	return nil
 }
 
-/*
-AddError adds an error to the Document. It will also set the document Mode to
-"ErrorMode" if not done so already.
-*/
+// AddError adds an error to the Document. It will also set the document Mode to
+// "ErrorMode" if not done so already.
 func (d *Document) AddError(newErr *Error) *Error {
-
 	if d.HasData() {
-		return ISE("Attempting to set an error, when the document has prepared response data")
+		return ISE("Invalid attempt to add an error to a document containing data")
 	}
 
 	if newErr.Status == 0 {
 		return ISE("No HTTP Status code provided for error, cannot add to document")
 	}
-
 	if d.Status == 0 {
 		d.Status = newErr.Status
 	}
 
-	if d.Errors == nil {
-		d.Errors = []*Error{newErr}
-	} else {
-		d.Errors = append(d.Errors, newErr)
-	}
-
 	// set document to error mode
+	d.Errors = append(d.Errors, newErr)
 	d.Mode = ErrorMode
-
 	return nil
 }
 
-/*
-First will return the first object from the document data if possible.
-*/
+// First will return the first object from the document data if possible.
 func (d *Document) First() *Object {
 	if !d.HasData() {
 		return nil
@@ -234,6 +231,7 @@ func (d *Document) HasErrors() bool {
 	return d.Errors != nil && len(d.Errors) > 0
 }
 
+// Error implements error for the Document type.
 func (d *Document) Error() string {
 	errStr := "Errors:"
 	for _, err := range d.Errors {
